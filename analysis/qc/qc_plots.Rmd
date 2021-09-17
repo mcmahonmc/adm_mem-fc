@@ -1,0 +1,178 @@
+---
+title: "MRIQC"
+author: "Megan McMahon"
+date: "8/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(dplyr)
+```
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+qc <- readr::read_delim("~/Box/Dissertation/group_bold.txt", delim = '\t')
+
+qc <- qc %>%
+  filter(grepl('MemMatch', bids_name)) %>%
+  mutate(run = stringr::str_split_fixed(stringr::str_split_fixed(bids_name, "task-", 2)[,2], "_run", 2)[,1]) %>%
+  mutate(subject = stringr::str_split_fixed(stringr::str_split_fixed(bids_name, "_task-", 2)[,1], "sub-", 2)[,2]) %>%
+  mutate(group = factor(ifelse(subject > 40000, "OA", "YA"), levels = c("YA", "OA")))
+```
+
+Summary stats (mean_fd, fd_perc)
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+tab <- qc %>%
+  group_by(group) %>%
+  summarise(n = dplyr::n_distinct(subject), mean_fd = mean(fd_mean, na.rm = T), min = min(fd_mean, na.rm = T), max = max(fd_mean, na.rm = T), mean_fd_perc = mean(fd_perc, na.rm = T), min_perc = min(fd_perc, na.rm = T), max_perc = max(fd_perc, na.rm = T), fd_num = mean(fd_num, na.rm = T))
+
+knitr::kable(tab)
+```
+
+```{r}
+qc_mean <- qc %>%
+  filter(fd_mean < 0.5) %>%
+  filter(fd_perc < 25) %>%
+  group_by(subject) %>%
+  dplyr::summarize(fd_perc_mean = mean(fd_perc, na.rm=TRUE), fd_mean_mean = mean(fd_mean, na.rm=TRUE)) %>%
+  mutate(group = factor(ifelse(subject < 40000, 0, 1)))
+
+qc_mean
+
+t.test(fd_perc_mean ~ group, data = qc_mean)
+t.test(fd_mean_mean ~ group, data = qc_mean)
+
+
+qc_mean %>%
+  ggplot() + 
+  geom_histogram(aes(x = fd_perc_mean, group = group, fill = group)) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1")
+
+qc_mean %>%
+  ggplot() + 
+  geom_histogram(aes(x = fd_mean_mean, group = group, fill = group)) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1")
+
+```
+
+
+Histogram FD percent (> 0.5 mm) by age group
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+
+qc %>%
+  ggplot() + 
+  geom_histogram(aes(x = fd_perc, group = run, fill = group)) +
+  facet_wrap(group ~ run) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1")
+
+```
+
+Histogram FD percent subsetted to > 20 % only
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+qc %>%
+  filter(group == "OA") %>%
+  ggplot() + 
+  geom_histogram(aes(x = fd_perc, group = run, fill = group)) +
+  facet_wrap(group ~ run) +
+  theme_bw() +
+  xlim(20, max(qc$fd_perc)) +
+  scale_fill_brewer(palette="Set1")
+
+```
+
+30% TRs > 0.5 mm FD
+```{r, echo = FALSE, warning = FALSE}
+
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "YA"]), " total YA subjects meeting QC criteria"))
+
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"]), " total OA subjects"))
+print(paste0(dplyr::n_distinct(qc$subject[(qc$fd_perc >= 30) & (qc$group == "OA")]), " OA subjects with > 30% TRs > 0.50 mm FD"))
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"], " total OA subjects") - dplyr::n_distinct(qc$subject[(qc$fd_perc >= 30) & (qc$group == "OA")]), " OA subjects meeting QC criteria"))
+
+qc1 <- qc %>%
+  filter(fd_perc >= 30) %>%
+  group_by(subject) %>%
+  count() %>%
+  filter(n == 1) %>%
+  length()
+
+print(paste0(qc1, " subjects with only 1 bad run"))
+
+qc %>%
+  filter(fd_perc >= 30) %>%
+  group_by(subject) %>%
+  count() %>%
+  ggplot() + 
+  geom_col(aes(x = subject, y = n, fill = factor(n))) + 
+  scale_fill_brewer(name = "No. of runs > 30% TRs > .5 mm FD", palette = "Set1")
+
+```
+
+
+25% TRs > 0.5 mm FD
+```{r, echo = FALSE, warning = FALSE}
+
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"]), " total OA subjects"))
+print(paste0(dplyr::n_distinct(qc$subject[(qc$fd_perc >= 25) & (qc$group == "OA")]), " OA subjects with > 25% TRs > 0.50 mm FD"))
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"], " total OA subjects") - dplyr::n_distinct(qc$subject[(qc$fd_perc >= 25) & (qc$group == "OA")]), " OA subjects meeting QC criteria"))
+
+qc1 <- qc %>%
+  filter(fd_perc >= 25) %>%
+  group_by(subject) %>%
+  count() %>%
+  filter(n == 1) %>%
+  length()
+
+print(paste0(qc1, " subjects with only 1 bad run"))
+
+qc %>%
+  filter(fd_perc >= 25) %>%
+  group_by(subject) %>%
+  count() %>%
+  ggplot() + 
+  geom_col(aes(x = subject, y = n, fill = factor(n))) + 
+  scale_fill_brewer(name = "No. of runs > 25% TRs > .5 mm FD", palette = "Set1")
+
+```
+
+
+20% TRs > 0.5 mm FD
+```{r, echo = FALSE, warning = FALSE}
+
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"]), " total OA subjects"))
+print(paste0(dplyr::n_distinct(qc$subject[(qc$fd_perc >= 20) & (qc$group == "OA")]), " OA subjects with > 20% TRs > 0.50 mm FD"))
+print(paste0(dplyr::n_distinct(qc$subject[qc$group == "OA"], " total OA subjects") - dplyr::n_distinct(qc$subject[(qc$fd_perc >= 20) & (qc$group == "OA")]), " OA subjects meeting QC criteria"))
+
+qc1 <- qc %>%
+  filter(fd_perc >= 20) %>%
+  group_by(subject) %>%
+  count() %>%
+  filter(n == 1) %>%
+  length()
+
+print(paste0(qc1, " subjects with only 1 bad run"))
+
+qc %>%
+  filter(fd_perc >= 20) %>%
+  group_by(subject) %>%
+  count() %>%
+  ggplot() + 
+  geom_col(aes(x = subject, y = n, fill = factor(n))) + 
+  scale_fill_brewer(name = "No. of runs > 20% TRs > .5 mm FD", palette = "Set1")
+  
+```
+
+Mean FD > 0.5 mm - no subjects
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+tab2 <- qc %>%
+  filter(fd_mean > .5)
+
+knitr::kable(tab2)
+```
+

@@ -1,0 +1,111 @@
+---
+title: "FC Study Power Analysis"
+author: "Megan McMahon"
+date: "8/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse) 
+library(simglm) 
+library(future.apply) 
+library(lme4)
+```
+
+```{r}
+plan(multicore)
+
+
+simulation_arguments <- list(
+  formula = y ~ 1 + group + cr + fc,
+  fixed = list(
+    group = list(
+      var_type = 'factor',
+      levels = c('Young Adults', 'Older Adults')
+    ),
+    cr = list(
+      var_type = 'continuous',
+      mean = 0,
+      sd = 1
+    ),
+    fc = list(
+      var_type = 'continuous',
+      mean = 0,
+      sd = 1
+    )),
+  vary_arguments = list(sample_size = c(seq(150, 250, 5))),
+  #sample size for each group))
+  error = list(variance = 1),
+  reg_weights = c(0, 0, 0.2, 0.42),
+  replications = 1000,
+  model_fit = list(
+    formula = y ~ 1 + group + cr + fc,
+    model_function = 'lm'
+  ),
+  extract_coefficients = TRUE
+)
+
+model_results <- replicate_simulation(simulation_arguments)
+```
+
+
+```{r}
+model_results %>%
+  compute_statistics(simulation_arguments, power = TRUE, type_1_error = FALSE, precision = TRUE)
+
+```
+
+```{r}
+power_results <-
+  model_results %>% 
+  compute_statistics(
+    simulation_arguments,
+    power = TRUE,
+    type_1_error = FALSE,
+    precision = TRUE
+  )
+```
+
+```{r}
+power_results_gr <- power_results %>%
+  ungroup() %>%
+  mutate(sample_size = as.numeric(as.character(sample_size...4))) %>%
+  arrange(sample_size) %>%
+  filter(grepl('group', `term...2`))
+
+power_results_cr <- power_results %>%
+  ungroup() %>%
+  mutate(sample_size = as.numeric(as.character(sample_size...4))) %>%
+  arrange(sample_size) %>%
+  filter(grepl('cr', `term...2`))
+
+power_results_fc <- power_results %>%
+  ungroup() %>%
+  mutate(sample_size = as.numeric(as.character(sample_size...4))) %>%
+  arrange(sample_size) %>%
+  filter(grepl('fc', `term...2`))
+```
+
+```{r}
+p <- ggplot(power_results_cr, aes(x = sample_size, y = power)) +
+  geom_point(size = 1.5, color = 'gray40') +
+  geom_hline(yintercept = 0.8,
+             linetype = 2,
+             color = 'gray30') +
+  geom_smooth(linetype = 1,
+              size = 1,
+              se = FALSE) +
+  geom_vline(xintercept = min(filter(power_results, power >= 0.8)$power),
+             linetype = 2) +
+  scale_x_continuous(name="Sample Size", limits = c(150, 250)) +
+  ylab("Power") + ylim(.6, 1) 
+
+p <- p + annotate("text", x = power_results_cr$sample_size[power_results_cr$power >= 0.80][1][]-10, y = .9, label = paste0("Minimum sample\nsize for\neach group\n ", power_results_cr$sample_size[power_results_cr$power >= 0.80][1])) + theme_bw(base_size = 14) + labs(caption="Based on c' path beta weight ~ 0.2 (Sherman et al., 2015)")
+
+p
+
+ggsave(filename="~/Box/Dissertation/OSF Preregistration/Figures/Figure5_power_analysis_k-1000_formula-gr_cr_fc_alpha-05.png", plot=p, dpi=300)
+
+```

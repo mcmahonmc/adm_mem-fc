@@ -1,0 +1,11 @@
+### for subject 30004, MemMatch1
+nibs --nthreads 16 -c white_matter csf bad_tr -t MemMatch1 --participant-label 30004 --estimator lsa --hrf-model glover -a /Volumes/psybrain/ADM/derivatives/nibs/power264-master/power264MNI.nii.gz -l /Volumes/psybrain/ADM/derivatives/nibs/power264_labels.tsv /Volumes/psybrain/ADM /Volumes/psybrain/ADM/derivatives/fmriprep /Volumes/psybrain/ADM/derivatives/nibs participant
+
+
+### for all subjects
+for subject in `cat subjects.txt`; do
+    echo "nibs --nthreads 16 -c white_matter csf bad_tr -t MemMatch1 --participant-label ${subject} --estimator lsa --hrf-model glover -a /Volumes/psybrain/ADM/derivatives/nibs/power264-master/power264MNI.nii.gz -l /Volumes/psybrain/ADM/derivatives/nibs/power264_labels.tsv /Volumes/psybrain/ADM /Volumes/psybrain/ADM/derivatives/fmriprep /Volumes/psybrain/ADM/derivatives/nibs participant";
+    nibs --nthreads 16 -c white_matter csf bad_tr -t MemMatch1 --participant-label $subject --estimator lsa --hrf-model glover -a /Volumes/psybrain/ADM/derivatives/nibs/power264-master/power264MNI.nii.gz -l /Volumes/psybrain/ADM/derivatives/nibs/power264_labels.tsv /Volumes/psybrain/ADM /Volumes/psybrain/ADM/derivatives/fmriprep /Volumes/psybrain/ADM/derivatives/nibs participant;
+done
+
+### will need to do this for MemMatch2, MemMatch3

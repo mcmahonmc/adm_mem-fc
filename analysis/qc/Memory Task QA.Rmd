@@ -1,0 +1,124 @@
+---
+title: "Memory Task QA"
+author: "Megan McMahon"
+date: "9/14/2021"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(knitr)
+
+mem_trial <- read_delim('/Users/mcmahonmc/Box/CogNeuroLab/Aging Decision Making R01/data/mri/Behavioral/memmatch_results_group.csv', delim = "\t", trim_ws=T)
+mem_trial_learning <- read_delim('/Users/mcmahonmc/Box/CogNeuroLab/Aging Decision Making R01/data/mri/Behavioral/study_results_group.csv', delim = "\t", trim_ws=T)
+
+mem_m <- mem_trial %>%
+  select(subject, run, isCorrect) %>%
+  group_by(subject, run) %>%
+  summarise(accuracy = mean(isCorrect, na.rm = T)) %>%
+  mutate(phase = "test")
+
+mem_l_1 <- mem_trial_learning %>%
+  select(subject, isCorrect) %>%
+  group_by(subject) %>%
+  summarise(accuracy = mean(isCorrect, na.rm = T)) %>%
+  mutate(phase = "learning") %>%
+  mutate(run = factor(1))
+
+mem_l_2 <- mem_trial_learning %>%
+  select(subject, isCorrect) %>%
+  group_by(subject) %>%
+  summarise(accuracy = mean(isCorrect, na.rm = T)) %>%
+  mutate(phase = "learning") %>%
+  mutate(run = factor(2))
+
+mem_l_3 <- mem_trial_learning %>%
+  select(subject, isCorrect) %>%
+  group_by(subject) %>%
+  summarise(accuracy = mean(isCorrect, na.rm = T)) %>%
+  mutate(phase = "learning") %>%
+  mutate(run = factor(3))
+
+mem_l <- rbind(mem_l_1, mem_l_2)
+mem_l <- rbind(mem_l, mem_l_3)
+mem_tr <- rbind(mem_l, mem_m)
+
+mem_l %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  ggplot() +
+  geom_histogram(aes(x = accuracy, fill = Group, group = Group), binwidth = 0.05) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1") +
+  ggtitle("Learning accuracy distribution")
+
+mem_m %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  ggplot() +
+  geom_histogram(aes(x = accuracy, fill = Group, group = Group), binwidth = 0.05) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1") +
+  ggtitle("Test accuracy distribution")
+
+mem_tr %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  ggplot() +
+  geom_histogram(aes(x = accuracy, fill = Group)) +
+  theme_bw() +
+  scale_fill_brewer(palette="Set1") +
+  facet_wrap(Group ~ run) +
+  ggtitle("Accuracy distribution across runs of test phase")
+
+sub_below <- mem_tr$subject[(mem_tr$accuracy < 0.5) & (mem_tr$phase == "test")]
+
+edge_cases <- mem_tr %>%
+  filter(phase == "test") %>%
+  group_by(subject) %>%
+  summarise(accuracy_mean = mean(accuracy, na.rm = T)) %>%
+  filter(accuracy_mean < 0.6) %>% # edge(ish) cases %>%
+  select(subject)
+
+mem_tr %>%
+  filter(subject %in% as.vector(t(edge_cases))) %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  ggplot(aes(x = phase, y = accuracy, group = subject, color = Group)) +
+  geom_line() +
+  geom_hline(yintercept = 0.30, color = 'yellow') + 
+  geom_hline(yintercept = 0.50, color = 'orange') +
+  geom_text(
+    aes(label = subject),
+    size = 2.5
+  ) +
+  # annotate("text", x = 'test', y = 0.32, label = "learning chance level") +
+  # annotate("text", x = 'test', y = 0.52, label = "test chance level") +
+  theme_bw() +
+  scale_color_brewer(palette="Set1") +
+  facet_wrap(Group ~ run) +
+  ggtitle("Difference between learning accuracy and accuracy on each run")
+
+mem_tr$run_ <- factor(ifelse(mem_tr$phase == "learning", "learning", mem_tr$run), levels = c("learning", 1, 2, 3))
+
+mem_tr %>%
+  filter(subject %in% as.vector(t(edge_cases))) %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  ggplot(aes(x = run_, y = accuracy, group = subject, color = Group)) +
+  geom_hline(yintercept = 0.30, color = 'yellow') + 
+  geom_hline(yintercept = 0.50, color = 'orange') +
+  geom_line() +
+  geom_text(
+    aes(label = sprintf("%.0f", accuracy*100)),
+    size = 2.5, vjust=-1
+  ) +
+  # annotate("text", x = 'test', y = 0.52, label = "test chance level") +
+  theme_bw() +
+  scale_color_brewer(palette="Set1") +
+  facet_wrap(subject ~ .) + xlab("run") +
+  ggtitle("Accuracy across trials for edge cases (accuracy < 0.60 on test)")
+
+table <- mem_tr %>%
+  filter(subject %in% as.vector(t(edge_cases))) %>%
+  mutate(Group = factor(ifelse(subject < 40000, "YA", "OA"))) %>%
+  group_by(subject, phase) %>%
+  summarise(accuracy_mean = sprintf("%.2f", mean(accuracy, na.rm = T)))
+
+knitr::kable(table)
+
+```
